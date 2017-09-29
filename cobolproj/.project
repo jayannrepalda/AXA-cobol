@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>cobolproj</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+	</buildSpec>
+	<natures>
+	</natures>
+	<linkedResources>
+		<link>
+			<name>INS01PGM</name>
+			<type>1</type>
+			<location>C:/Users/jay.ann.c.repalda/Desktop/ToDo/AXA/INS01PGM</location>
+		</link>
+		<link>
+			<name>Generation/COBOL/Source/INS01PGM</name>
+			<type>1</type>
+			<location>C:/Users/jay.ann.c.repalda/Desktop/ToDo/AXA/INS01PGM</location>
+		</link>
+	</linkedResources>
+</projectDescription>

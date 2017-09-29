@@ -1,0 +1,651 @@
+      ******************************************************************
+      *  BATCH PROGRAM NAME: INS01PGM                                  *
+      *     PROGRAM MANIPULATING TRANSACTION AMOUNTS IF FILE, ADDING   *
+      *     THE TOTAL TO CURRENT IN A MASTER FILE WHICH IS SAVED IN A  *
+      *     NEW MASTER FILE IN AN INSURANCE SYSTEM.                    *
+      *  REVISION/CHANGE HISTORY:                                      *
+      ******************************************************************
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. INS01PGM.
+       AUTHOR. ACCENTURE.
+
+       ENVIRONMENT DIVISION.
+
+       CONFIGURATION SECTION.
+
+       INPUT-OUTPUT SECTION.
+
+       FILE-CONTROL.
+
+           SELECT INPUT01-FILE ASSIGN TO INPUT01
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS FS-INPUT01.
+
+           SELECT INPUT02-FILE ASSIGN TO INPUT02
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS FS-INPUT02.
+
+           SELECT OUTPUT01-FILE ASSIGN TO OUTPUT01
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS FS-OUTPUT01.
+
+           SELECT OUTPUT02-FILE ASSIGN TO OUTPUT02
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS FS-OUTPUT02.
+
+       DATA DIVISION.
+
+       FILE SECTION.
+
+       FD  INPUT01-FILE
+           RECORDING MODE IS F
+           LABEL RECORDS STANDARD
+           DATA RECORD IS FTRNTRNCPY
+           BLOCK CONTAINS 0 RECORDS
+           RECORD CONTAINS 35 CHARACTERS.
+
+       COPY FINSTRAN.
+
+       FD  INPUT02-FILE
+           RECORDING MODE IS F
+           LABEL RECORDS STANDARD
+           DATA RECORD IS FINSMSTCPY
+           BLOCK CONTAINS 0 RECORDS
+           RECORD CONTAINS 45 CHARACTERS.
+
+       COPY FINSMAST.
+
+       FD  OUTPUT01-FILE
+           RECORDING MODE IS F
+           LABEL RECORDS STANDARD
+           DATA RECORD IS FINS2MSTCPY
+           BLOCK CONTAINS 0 RECORDS
+           RECORD CONTAINS 45 CHARACTERS.
+
+       COPY FINSMST2.
+
+       FD  OUTPUT02-FILE
+           RECORDING MODE IS F
+           LABEL RECORDS STANDARD
+           DATA RECORD IS FINS3MSTCPY
+           BLOCK CONTAINS 0 RECORDS
+           RECORD CONTAINS 45 CHARACTERS.
+
+       COPY FINSMST3.
+
+       WORKING-STORAGE SECTION.
+       01  WS-INIT.
+          05  FTRNTRNCPY-INIT.
+               10  TRN-ACCT-ID-INIT        PIC X(010)  VALUE SPACES.
+               10  TRN-ACCT-NAME-INIT      PIC X(010)  VALUE SPACES.
+               10  TRN-PREMIUM-INIT        PIC S9(015) VALUE ZEROS.
+
+           05  FINSMSTCPY-INIT.
+               10  INS-ACCT-ID-INIT        PIC X(010)  VALUE SPACES.
+               10  INS-ACCT-NAME-INIT      PIC X(010)  VALUE SPACES.
+               10  INS-POLICY-INIT         PIC X(010)  VALUE SPACES.
+               10  INS-CURR-AMT-INIT       PIC S9(015) VALUE ZEROS.
+
+           05  FINS2MSTCPY-INIT.
+               10  INS2-ACCT-ID-INIT       PIC X(010)  VALUE SPACES.
+               10  INS2-ACCT-NAME-INIT     PIC X(010)  VALUE SPACES.
+               10  INS2-POLICY-INIT        PIC X(010)  VALUE SPACES.
+               10  INS2-CURR-AMT-INIT      PIC S9(015) VALUE ZEROS.
+
+           05  FINS3MSTCPY-INIT.
+               10  INS3-ACCT-ID-INIT       PIC X(010)  VALUE SPACES.
+               10  INS3-ACCT-NAME-INIT     PIC X(010)  VALUE SPACES.
+               10  INS3-POLICY-INIT        PIC X(010)  VALUE SPACES.
+               10  INS3-CURR-AMT-INIT      PIC S9(015) VALUE ZEROS.
+
+       01  WS-VARIABLES.
+           05  VA-READ-INPUT01             PIC ZZZ,ZZZ,ZZ9
+                                                       VALUE ZEROS.
+           05  VA-READ-INPUT02             PIC ZZZ,ZZZ,ZZ9
+                                                       VALUE ZEROS.
+           05  VA-WRITTEN-OUTPUT01         PIC ZZZ,ZZZ,ZZ9
+                                                       VALUE ZEROS.
+           05  VA-REJECTED-OUTPUT02        PIC ZZZ,ZZZ,ZZ9
+                                                       VALUE ZEROS.
+           05  VA-FILE-ERROR               PIC X(002)  VALUE SPACES.
+           05  VA-FILE-NAME                PIC X(008)  VALUE SPACES.
+           05  VA-SENTENCE                 PIC X(008)  VALUE SPACES.
+           05  VA-DESCRIPTION              PIC X(050)  VALUE SPACES.
+           05  VA-KEY-E1.
+               10  VA-E1-TRN-ACCT-ID       PIC  X(010) VALUE SPACES.
+
+           05  VA-KEY-E2.
+               10  VA-E2-INS-ACCT-ID       PIC  X(010) VALUE SPACES.
+
+       01  WS-SWITCHES.
+
+           05  SW-END-INPUT01              PIC X(001)  VALUE ' '.
+               88  YES-END-INPUT01                     VALUE 'Y'.
+               88  NO-END-INPUT01                      VALUE 'N'.
+
+           05  SW-END-INPUT02              PIC X(001)  VALUE ' '.
+               88  YES-END-INPUT02                     VALUE 'Y'.
+               88  NO-END-INPUT02                      VALUE 'N'.
+
+           05  SW-FS-RETURN                PIC X(002)  VALUE '  '.
+               88  FS-OK                               VALUE '00'.
+               88  FS-EOF                              VALUE '10'.
+
+           05  SW-FOUND                    PIC X(001)  VALUE ' '.
+               88  FOUND-YES                           VALUE 'Y'.
+               88  FOUND-NO                            VALUE 'N'.
+
+           05  SW-CLOSE-FILES              PIC X(001)  VALUE ' '.
+               88  YES-CLOSE-FILES                     VALUE 'Y'.
+               88  NO-CLOSE-FILES                      VALUE 'N'.
+
+       01  CO-COUNTERS.
+           05  CO-TOT-READ-INPUT01         PIC S9(011)  COMP
+                               VALUE ZEROS.
+           05  CO-TOT-READ-INPUT02         PIC S9(009)   COMP
+                               VALUE ZEROS.
+           05  CO-TOT-WRITE-OUTPUT01       PIC S9(009)   COMP
+                               VALUE ZEROS.
+           05  CO-TOT-WRITE-OUTPUT02       PIC S9(009)   COMP
+                               VALUE ZEROS.
+
+       01  FS-FILE-STATUS.
+           05  FS-INPUT01                  PIC X(002)  VALUE SPACES.
+           05  FS-INPUT02                  PIC X(002)  VALUE SPACES.
+           05  FS-OUTPUT01                 PIC X(002)  VALUE SPACES.
+           05  FS-OUTPUT02                 PIC X(002)  VALUE SPACES.
+
+       01  CA-CONSTANTS.
+           05  CA-SPACE                    PIC X(001)  VALUE SPACES.
+           05  CA-FS                       PIC X(004)  VALUE 'FS: '.
+           05  CA-DASH                     PIC X(001)  VALUE '/'.
+           05  CA-INPUT01                  PIC X(008)  VALUE 'INPUT01'.
+           05  CA-INPUT02                  PIC X(008)  VALUE 'INPUT02'.
+           05  CA-OUTPUT01                 PIC X(008)  VALUE 'OUTPUT01'.
+           05  CA-OUTPUT02                 PIC X(008)  VALUE 'OUTPUT02'.
+           05  CA-TXT-OPEN                 PIC X(008)  VALUE 'OPEN'.
+           05  CA-TXT-READ                 PIC X(008)  VALUE 'READ'.
+           05  CA-TXT-WRITE                PIC X(008)  VALUE 'WRITE'.
+           05  CA-TXT-CLOSE                PIC X(008)  VALUE 'CLOSE'.
+           05  CA-PARAGRAPH-9450           PIC X(021)
+                               VALUE '9450-CHECK-FS-INPUT-1'.
+           05  CA-PARAGRAPH-9460           PIC X(022)
+                               VALUE '9460-CHECK-FS-OUTPUT-1'.
+           05  CA-PARAGRAPH-9470           PIC X(021)
+                               VALUE '9470-CHECK-FS-INPUT-2'.
+           05  CA-PARAGRAPH-9480           PIC X(022)
+                               VALUE '9480-CHECK-FS-OUTPUT-2'.
+
+       01  CN-NUMERIC-CONSTANTS.
+
+           05  CN-ADD-ONE                  PIC S9(001)      COMP
+                                                       VALUE +1.
+       01  COM-VARS.
+           05  TRN-PREMIUM-COMP            PIC S9(15)  COMP
+                               VALUE ZEROS.
+           05  INS-CURR-AMT-COMP           PIC S9(15)  COMP
+                               VALUE ZEROS.
+           05  PERC-COMP                   PIC 9V9     COMP
+                               VALUE 1.1.
+
+       PROCEDURE DIVISION.
+
+           PERFORM 1000-START-PROCESS
+
+           PERFORM 2000-PROGRAM-PROCESS
+               UNTIL YES-END-INPUT01
+                   AND YES-END-INPUT02
+
+           PERFORM 3000-END-PROCESS
+           .
+      ******************************************************************
+      *                          1000-START-PROCESS                   *
+      *                                                                *
+      *    -ALL THE VARIABLES, COPYS AND DCLGENS, INTERNAL TABLES AS   *
+      *     WELL AS THE SWITCHES  ARE INITIALIZED                      *
+      *    -FILES OF THE PROGRAM ARE OPENED                            *
+      *    -FILE STATUS IS CHECKED.                                    *
+      *    -INPUT FILES ARE READ                                       *
+      ******************************************************************
+       1000-START-PROCESS.
+
+           SET NO-END-INPUT01 TO TRUE
+           SET NO-END-INPUT02 TO TRUE
+
+           PERFORM 1200-OPEN-FILES
+
+           MOVE FTRNTRNCPY-INIT  TO FTRNTRNCPY
+           MOVE FINSMSTCPY-INIT  TO FINSMSTCPY
+           MOVE FINS2MSTCPY-INIT TO FINS2MSTCPY
+           MOVE FINS3MSTCPY-INIT TO FINS3MSTCPY
+
+           PERFORM 9100-READ-FILE-E1
+
+           PERFORM 9200-READ-FILE-E2
+           .
+      ******************************************************************
+      *                  1200-OPEN-FILES                               *
+      *                                                                *
+      *    -THIS PARAGRAPH OPENS THE FILES USED BY THE PROGRAM.        *
+      ******************************************************************
+       1200-OPEN-FILES.
+
+           OPEN INPUT  INPUT01-FILE
+                       INPUT02-FILE
+                OUTPUT OUTPUT01-FILE
+                       OUTPUT02-FILE
+
+           MOVE CA-TXT-OPEN    TO VA-SENTENCE
+
+           PERFORM 9450-CHECK-FS-INPUT-1
+
+           SET NO-CLOSE-FILES TO TRUE
+           PERFORM 9460-CHECK-FS-OUTPUT-1
+
+           PERFORM 9470-CHECK-FS-INPUT-2
+
+           PERFORM 9480-CHECK-FS-OUTPUT-2
+           .
+      ******************************************************************
+      *                           2000-PROGRAM-PROCESS                 *
+      *                                                                *
+      *  -INPUT FILES KEYS ARE COMPARED. IF THEY ARE EQUAL, A RECORD   *
+      *  IS WRITTEN IN OUTPUT FILE 1. IF NOT, THE INPUT FILES ARE READ *
+      ******************************************************************
+       2000-PROGRAM-PROCESS.
+
+           IF  VA-KEY-E1 EQUAL VA-KEY-E2
+
+               SET FOUND-YES     TO TRUE
+
+               MOVE INS-CURR-AMT TO INS-CURR-AMT-COMP
+
+               PERFORM 2050-COMPUTE-PROCESS
+                        UNTIL VA-KEY-E1 NOT EQUAL VA-KEY-E2
+                                        OR YES-END-INPUT01
+
+               MOVE INS-CURR-AMT-COMP TO INS-CURR-AMT
+
+               PERFORM 2100-MOVE-FIELD-OK
+
+               PERFORM 9300-WRITE-OUTPUT-1
+
+               PERFORM 9200-READ-FILE-E2
+
+           ELSE
+
+               IF  VA-KEY-E1 LESS VA-KEY-E2
+
+                   IF  FOUND-NO
+
+                       PERFORM 2200-MOVE-FIELD-NOK
+
+                       PERFORM 9350-WRITE-OUTPUT-2
+
+                   END-IF
+
+                   PERFORM 9100-READ-FILE-E1
+
+               ELSE
+
+                   PERFORM 9200-READ-FILE-E2
+
+               END-IF
+
+           END-IF
+           .
+      ******************************************************************
+      *                           2050-COMPUTE-PROCESS                 *
+      *                                                                *
+      *  -INPUT FILES KEYS ARE COMPARED. IF THEY ARE EQUAL, A RECORD   *
+      *  IS WRITTEN IN OUTPUT FILE 1. IF NOT, THE INPUT FILES ARE READ *
+      ******************************************************************
+       2050-COMPUTE-PROCESS.
+           MOVE TRN-ACCT-ID   TO INS-ACCT-ID
+           MOVE TRN-ACCT-NAME TO INS-ACCT-NAME
+           MOVE TRN-PREMIUM   TO TRN-PREMIUM-COMP
+           COMPUTE
+               TRN-PREMIUM-COMP  = TRN-PREMIUM-COMP *
+                                   PERC-COMP
+           END-COMPUTE
+           COMPUTE
+               INS-CURR-AMT-COMP = INS-CURR-AMT-COMP +
+                                   TRN-PREMIUM-COMP
+           END-COMPUTE
+           PERFORM 9100-READ-FILE-E1
+           .
+      ******************************************************************
+      *                 2100-MOVE-FIELD-OK                             *
+      *                                                                *
+      *  -FIELDS OF OUTPUT OK FILE ARE INFORMED                        *
+      ******************************************************************
+       2100-MOVE-FIELD-OK.
+           MOVE INS-ACCT-ID   TO INS2-ACCT-ID
+           MOVE INS-ACCT-NAME TO INS2-ACCT-NAME
+
+           MOVE INS-POLICY    TO INS2-POLICY
+           MOVE INS-CURR-AMT  TO INS2-CURR-AMT
+           .
+      ******************************************************************
+      *                 2200-MOVE-FIELD-NOK                            *
+      *                                                                *
+      *  -FIELDS OF OUTPUT ERROR FILE ARE INFORMED                     *
+      ******************************************************************
+       2200-MOVE-FIELD-NOK.
+           MOVE TRN-ACCT-ID   TO INS3-ACCT-ID
+           MOVE TRN-ACCT-NAME TO INS3-ACCT-NAME
+           .
+      ******************************************************************
+      *                        3000-END-PROCESS                        *
+      *                                                                *
+      *    -END OF THE PROGRAM                                         *
+      ******************************************************************
+       3000-END-PROCESS.
+
+           PERFORM 3150-STATISTICS
+
+           PERFORM 9440-CLOSE-FILES
+           PERFORM 9990-END-PROG
+           .
+      ******************************************************************
+      *                      3150-STATISTICS                           *
+      *                                                                *
+      *   -THIS PARAGRAPH WRITES THE DETAIL OF THE REPORT OF STATISTICS*
+      ******************************************************************
+       3150-STATISTICS.
+
+            MOVE CO-TOT-READ-INPUT01   TO VA-READ-INPUT01
+            MOVE CO-TOT-READ-INPUT02   TO VA-READ-INPUT02
+            MOVE CO-TOT-WRITE-OUTPUT01 TO VA-WRITTEN-OUTPUT01
+            MOVE CO-TOT-WRITE-OUTPUT02 TO VA-REJECTED-OUTPUT02
+            .
+      ******************************************************************
+      *                                                                *
+      *           COMMON PROCESSES DECLARATION                         *
+      *                                                                *
+      ******************************************************************
+      ******************************************************************
+      *                   9100-READ-FILE-E1                            *
+      *                                                                *
+      *  -THE INPUT FILE  E1 IS READ                                   *
+      ******************************************************************
+       9100-READ-FILE-E1.
+
+           READ INPUT01-FILE
+               AT END
+
+                   SET YES-END-INPUT01 TO TRUE
+
+                   MOVE HIGH-VALUES     TO VA-KEY-E1
+
+           END-READ
+
+           MOVE CA-TXT-READ             TO VA-SENTENCE
+
+           PERFORM 9450-CHECK-FS-INPUT-1
+
+           IF  NO-END-INPUT01
+               COMPUTE
+                   CO-TOT-READ-INPUT01 = CO-TOT-READ-INPUT01 +
+                                         CN-ADD-ONE
+               END-COMPUTE
+               SET  FOUND-NO TO TRUE
+               MOVE TRN-ACCT-ID TO VA-E1-TRN-ACCT-ID
+           END-IF
+           .
+      ******************************************************************
+      *                   9200-READ-FILE-E2                            *
+      *                                                                *
+      *  -THE INPUT FILE E2 S READ                                     *
+      *  ............................................................  *
+      *  ............................................................  *
+      ******************************************************************
+       9200-READ-FILE-E2.
+
+           READ INPUT02-FILE
+               AT END
+
+                   SET YES-END-INPUT02 TO TRUE
+
+                   MOVE HIGH-VALUES     TO VA-KEY-E2
+
+           END-READ
+
+           MOVE CA-TXT-READ             TO VA-SENTENCE
+
+           PERFORM 9470-CHECK-FS-INPUT-2
+
+           IF  NO-END-INPUT02
+
+               COMPUTE CO-TOT-READ-INPUT02 = CO-TOT-READ-INPUT02 +
+                                             CN-ADD-ONE
+
+               MOVE INS-ACCT-ID TO VA-E2-INS-ACCT-ID
+
+
+           END-IF
+           .
+      ******************************************************************
+      *                   9300-WRITE-OUTPUT-1                          *
+      *                                                                *
+      *  -THIS PARAGRAPH WRITES THE OUTPUT FILE .....................  *
+      *  ............................................................  *
+      *  ............................................................  *
+      ******************************************************************
+       9300-WRITE-OUTPUT-1.
+
+           WRITE FINS2MSTCPY
+
+           MOVE CA-TXT-WRITE TO VA-SENTENCE
+
+           PERFORM 9460-CHECK-FS-OUTPUT-1
+
+           COMPUTE CO-TOT-WRITE-OUTPUT01 = CO-TOT-WRITE-OUTPUT01 +
+                                           CN-ADD-ONE
+
+           MOVE SPACES TO INS2-ACCT-ID
+                          INS2-ACCT-NAME
+                          INS2-POLICY
+           MOVE ZEROS  TO INS2-CURR-AMT
+           .
+      ******************************************************************
+      *                   9350-WRITE-OUTPUT-2                          *
+      *                                                                *
+      *  -THIS PARAGRAPH WRITES THE OUTPUT FILE .....................  *
+      *  ............................................................  *
+      *  ............................................................  *
+      ******************************************************************
+       9350-WRITE-OUTPUT-2.
+
+           WRITE FINS3MSTCPY
+
+           MOVE CA-TXT-WRITE TO VA-SENTENCE
+
+           PERFORM 9480-CHECK-FS-OUTPUT-2
+
+           COMPUTE CO-TOT-WRITE-OUTPUT02 = CO-TOT-WRITE-OUTPUT02 +
+                                           CN-ADD-ONE
+
+           MOVE SPACES TO INS3-ACCT-ID
+                          INS3-ACCT-NAME
+                          INS3-POLICY
+           MOVE ZEROS  TO INS3-CURR-AMT
+           .
+      ******************************************************************
+      *                  9440-CLOSE-FILES                              *
+      *                                                                *
+      *  -THE FILES ARE CLOSED AND THE FILE-STATUS IS CHECKED.         *
+      ******************************************************************
+       9440-CLOSE-FILES.
+
+           CLOSE  INPUT01-FILE
+                  INPUT02-FILE
+                  OUTPUT01-FILE
+                  OUTPUT02-FILE
+
+           MOVE CA-TXT-CLOSE       TO VA-SENTENCE
+
+           PERFORM 9450-CHECK-FS-INPUT-1
+
+           PERFORM 9460-CHECK-FS-OUTPUT-1
+
+           PERFORM 9470-CHECK-FS-INPUT-2
+
+           PERFORM 9480-CHECK-FS-OUTPUT-2
+
+           SET YES-CLOSE-FILES TO TRUE
+           .
+      ******************************************************************
+      *                    9450-CHECK-FS-INPUT-1                       *
+      *                                                                *
+      *   -THE FILE-STATUS IS CHECKED.                                 *
+      ******************************************************************
+       9450-CHECK-FS-INPUT-1.
+
+           MOVE FS-INPUT01            TO SW-FS-RETURN
+
+           IF  NOT FS-OK AND NOT FS-EOF
+
+               MOVE CA-INPUT01        TO VA-FILE-NAME
+               MOVE FS-INPUT01        TO VA-FILE-ERROR
+
+               STRING VA-KEY-E1
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-PARAGRAPH-9450
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-FS
+                      CA-SPACE
+                      FS-INPUT01
+                      DELIMITED BY SIZE
+               INTO VA-DESCRIPTION
+
+               PERFORM 9800-GENERATE-ERROR
+
+           END-IF
+           .
+      ******************************************************************
+      *                    9460-CHECK-FS-OUTPUT-1                      *
+      *                                                                *
+      *   -THE FILE-STATUS IS CHECKED.                                 *
+      ******************************************************************
+       9460-CHECK-FS-OUTPUT-1.
+
+           MOVE FS-OUTPUT01            TO SW-FS-RETURN
+
+           IF  NOT FS-OK
+
+               MOVE CA-OUTPUT01        TO VA-FILE-NAME
+               MOVE FS-OUTPUT01        TO VA-FILE-ERROR
+
+             STRING VA-KEY-E1
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-PARAGRAPH-9460
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-FS
+                      CA-SPACE
+                      FS-OUTPUT01
+                      DELIMITED BY SIZE
+               INTO VA-DESCRIPTION
+
+               PERFORM 9800-GENERATE-ERROR
+
+           END-IF
+           .
+      ******************************************************************
+      *                    9470-CHECK-FS-INPUT-2                       *
+      *                                                                *
+      *   -THE FILE-STATUS IS CHECKED.                                 *
+      ******************************************************************
+       9470-CHECK-FS-INPUT-2.
+
+           MOVE FS-INPUT02            TO SW-FS-RETURN
+
+           IF  NOT FS-OK AND NOT FS-EOF
+
+               MOVE CA-INPUT02        TO VA-FILE-NAME
+               MOVE FS-INPUT02        TO VA-FILE-ERROR
+
+               STRING VA-KEY-E2
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-PARAGRAPH-9470
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-FS
+                      CA-SPACE
+                      FS-INPUT02
+                      DELIMITED BY SIZE
+               INTO VA-DESCRIPTION
+
+               PERFORM 9800-GENERATE-ERROR
+
+           END-IF
+           .
+      ******************************************************************
+      *                    9480-CHECK-FS-OUTPUT-2                      *
+      *                                                                *
+      *   -THE FILE-STATUS IS CHECKED.                                 *
+      ******************************************************************
+       9480-CHECK-FS-OUTPUT-2.
+
+           MOVE FS-OUTPUT02            TO SW-FS-RETURN
+
+           IF  NOT FS-OK
+
+               MOVE CA-OUTPUT02        TO VA-FILE-NAME
+               MOVE FS-OUTPUT02        TO VA-FILE-ERROR
+
+               STRING VA-KEY-E1
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-PARAGRAPH-9480
+                      CA-SPACE
+                      CA-DASH
+                      CA-SPACE
+                      CA-FS
+                      CA-SPACE
+                      FS-OUTPUT02
+                   DELIMITED BY SIZE
+                   INTO VA-DESCRIPTION
+               END-STRING
+
+               PERFORM 9800-GENERATE-ERROR
+
+           END-IF
+           .
+      ******************************************************************
+      *                      9800-GENERATE-ERROR                       *
+      *                                                                *
+      *  GENERATE A DISPLAY OF ERROR AND CALL CANCEL-EXECUTION         *
+      *                                                                *
+      ******************************************************************
+       9800-GENERATE-ERROR.
+           IF  NO-CLOSE-FILES
+               PERFORM 9440-CLOSE-FILES
+           END-IF
+           PERFORM 9990-END-PROG
+           .
+      ******************************************************************
+      *                    9990-END-PROG                               *
+      *                                                                *
+      *  STOP EXECUTION                                                *
+      *                                                                *
+      ******************************************************************
+       9990-END-PROG.
+           STOP RUN
+           .
